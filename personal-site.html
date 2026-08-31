@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Index</title>
+
+<!-- three things you normally touch, all near the top: the :root colours, the DATA array, and the AREA_SHAPE map. everything below DATA is the engine that draws and animates the map, and rarely needs editing -->
+<!-- how it works: one node sits in the centre (the "focus") and its connections float around it. hovering a node blooms its details out as "satellite" nodes, clicking a node travels into it, and clicking empty space returns home -->
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+
+<style>
+  :root{                  /* change these values to reskin the whole map, everything else derives from them */
+    --paper:#F0F0F0;      /* white (background) */
+    --ink:#010101;        /* black (lines, text and outlines) */
+    --tint:#e0e0e0;       /* off white (fill of the node you are currently on) */
+    --hair:#d2d2d2;       /* light grey (dividers) */
+    --grayline:#a0a0a0;   /* middle grey (dotted related links) */
+    --faint:#8c8c8c;      /* dark grey (secondary text) */
+    --accent:#e64500;     /* orange (accent) */
+    --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;  /* every bit of type on the page */
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--paper);color:var(--ink);   /* the page fills the screen, hides scrollbars, and uses the sans font */
+    font-family:var(--sans);
+    overflow:hidden;-webkit-font-smoothing:antialiased;}
+  #graph{position:fixed;inset:0;}      /* the drawing surface fills the window */
+  svg{width:100%;height:100%;display:block;}
+
+  .link{stroke:var(--ink);stroke-width:.9;opacity:.72;}   /* a solid line is a real parent to child connection */
+  .link.cross{stroke:var(--grayline);stroke-width:.85;opacity:.85;stroke-dasharray:0.5 4;stroke-linecap:round;}   /* a dotted grey line is a "related" cross-link */
+  .link.hot{stroke:var(--accent);opacity:1;}   /* the highlighted line, its colour is set by the script to the active node's accent */
+  .link.dim{opacity:.1;}               /* faded when another node is highlighted */
+
+  .node{cursor:pointer;}
+  .node.info{cursor:default;}          /* satellites are not clickable to travel */
+  .node .hit{fill:transparent;}        /* an invisible larger area so hovering and grabbing is easy */
+  .node .icon{transform-box:fill-box;transform-origin:center;transition:transform .22s cubic-bezier(.22,1,.36,1);}   /* the whole icon lives in a wrapper so we can gently swell it on hover */
+  .node:hover .icon{transform:scale(1.08);}   /* the swell on hover */
+  .node .moat{fill:var(--paper);stroke:none;}   /* an invisible paper disc behind each symbol so crossing lines break with a clean gap instead of showing through */
+  .node .shape{fill:var(--paper);stroke:var(--ink);stroke-width:1;
+    transition:fill .3s,stroke .3s;vector-effect:non-scaling-stroke;}   /* the little symbol (circle, square, hexagon, triangle) */
+  .node.focus .shape{fill:var(--tint);}   /* the node you are currently centred on is filled with the tint */
+  .node .petal{fill:var(--accent);stroke:none;}   /* the eight petals of the centre flower, colour set per node by the script */
+  .flowerSpin{transform-box:fill-box;transform-origin:center;animation:nt-spin 26s linear infinite;}   /* the flower (and compass needle) turns slowly forever */
+  @keyframes nt-spin{to{transform:rotate(360deg);}}
+  .node .flowerCore{fill:var(--paper);stroke:none;}   /* the small paper hub at the centre of the flower/compass */
+  .node .needleN{stroke:none;}   /* the compass needle's north half, its colour is set per node */
+  .node .needleS{fill:var(--ink);stroke:none;}   /* the compass needle's south half */
+  .node .ballOuter{stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke;}   /* the pool ball disc, its fill is set per node */
+  .node .ballSpot{fill:var(--paper);stroke:none;}   /* the smaller off-centre spot on the pool ball */
+  .node .mark{fill:var(--ink);animation:nt-pulse 3.2s ease-in-out infinite;}   /* the tiny dot inside a leaf symbol, it fades in and out but keeps its size */
+  @keyframes nt-pulse{0%,100%{opacity:.3;}50%{opacity:1;}}
+  .node .xmark{stroke:var(--ink);stroke-width:1;stroke-linecap:round;}  /* the ✕ drawn on the current node */
+  .node .count{font-size:9px;fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none;}   /* the connection count shown inside an area hexagon */
+
+  .node text{text-anchor:middle;pointer-events:none;}   /* labels sit centred below each node */
+  .node .lbl{font-size:11px;fill:var(--ink);letter-spacing:.02em;font-weight:400;
+    paint-order:stroke;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;}   /* the paper "stroke" is a halo so the lines read cleanly behind the text */
+  .node .kind{font-size:8px;fill:var(--faint);letter-spacing:.16em;text-transform:uppercase;font-weight:400;
+    paint-order:stroke;stroke:var(--paper);stroke-width:2.5px;stroke-linejoin:round;}   /* the small grey descriptor under the label */
+  .node.root .lbl{font-size:15px;font-weight:500;letter-spacing:-.01em;}  /* the centre name is bigger */
+  .node.dim{opacity:.15;transition:opacity .3s;}  /* faded when another node is highlighted */
+
+  .fo{overflow:visible;}   /* the foreignObject that holds a satellite's html content */
+  .ihit{fill:transparent;}             /* invisible hover area for a satellite */
+  .iback{fill:var(--paper);stroke:none;pointer-events:none;}   /* a visual line-mask only, it must NOT act as a hit-box or it steals grabs */
+  .anno{font-family:var(--sans);pointer-events:none;
+    text-shadow:-1.5px -1.5px 0 var(--paper),1.5px -1.5px 0 var(--paper),-1.5px 1.5px 0 var(--paper),1.5px 1.5px 0 var(--paper),0 0 3px var(--paper),0 0 3px var(--paper);}   /* the text block, the paper text-shadow is a halo so lines read behind it */
+  .anno .a-sub{font-size:12px;color:var(--faint);line-height:1.45;margin-bottom:6px;}   /* the subtitle line */
+  .anno .a-body{font-size:12.5px;color:var(--ink);line-height:1.55;}                     /* the description */
+  .anno .a-meta{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:8px;}   /* the meta key/value line */
+  .alink{white-space:nowrap;}
+  .alink a{font-family:var(--sans);font-size:11px;color:var(--accent);
+    text-decoration:none;border-bottom:.5px solid var(--accent);white-space:nowrap;letter-spacing:.02em;
+    text-shadow:-1.5px -1.5px 0 var(--paper),1.5px -1.5px 0 var(--paper),-1.5px 1.5px 0 var(--paper),1.5px 1.5px 0 var(--paper),0 0 3px var(--paper);}   /* a link satellite */
+  .alink a:hover{opacity:.7;}
+  .aimg{display:inline-block;line-height:0;}   /* an image satellite (add border:1px solid var(--ink) here to frame it) */
+  .aimg img{display:block;width:118px;height:auto;}
+
+  @media print{ body{overflow:visible;} svg{height:86vh;} }   /* let the page show normally when printed */
+</style>
+</head>
+<body>
+  <div id="graph"></div>
+
+<script>
+
+// DATA is your whole site, one entry is one node. the fields you can set are:
+//   id       a unique name with no spaces (other nodes point at this)
+//   label    the short name shown on the map
+//   type     "root" (the single centre), "branch" (a top-level area), or "leaf" (an item)
+//   parent   the id of the node this hangs off, this draws the solid line
+//   kind     the small grey word shown under the label, e.g. "project"
+//   subtitle a one-line descriptor, shown in the hover text block
+//   meta     a set of key/value pairs, e.g. { year:"2024", role:"lead" }
+//   body     the longer description shown in the hover text block
+//   connect  a list of other ids to cross-link to (these draw as dotted lines)
+//   further  a list of links, e.g. [{ label:"live site", url:"https://…" }]
+//   images   a list of images, e.g. [{ src:"images/x.jpg", alt:"…" }]
+//   shape    optional override: "flower" "compass" "poolball" "hexagon" "triangle" "square" "circle"
+//   accent   optional per-node colour: a palette name below, or any hex, it tints this node's highlighted lines and its ring/flower
+// to add a node copy any { … } block, give it a new id and set its parent; to remove a satellite just delete that field
+
+const ACCENTS = {          // the accent palette, all tuned to sit beside the original orange on the light background
+  orange:"#e64500",   // the original
+  red:   "#d92d20",
+  yellow:"#e0a000",   // a deep amber so it reads on light grey
+  green: "#2f9e44",
+  blue:  "#2f6fe0",
+  purple:"#8a3fd4",
+};
+
+// a self-contained placeholder so the image satellite works out of the box, replace with "images/yourphoto.jpg" (a file in an images/ folder next to this html) or another data uri (external urls may be blocked)
+const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='92'><rect width='120' height='92' fill='%23d9d9d9'/><circle cx='60' cy='36' r='15' fill='%23b3b3b3'/><rect x='34' y='56' width='52' height='30' rx='2' fill='%23b3b3b3'/></svg>";
+
+const DATA = [
+  // the centre of everything, type "root" with no parent
+  { id:"self", type:"root", label:"Callum Jack", sub:"b. 2009", kind:"Index", shape:"poolball", accent:"#0a0a0a",
+    subtitle:"An evolving collection of my work, and the themes that run through it.",
+    body:"A short statement of intent - what ties everything together, in your own voice.",
+    meta:{ email:"you@example.com" },
+    connect:["work","writing","play"] },
+
+  // the three top-level areas, each carries its own accent colour which tints its highlighted lines and ring
+  { id:"work", type:"branch", parent:"self", label:"Work", kind:"Area", accent:"blue",
+    subtitle:"Things I build and ship.",
+    body:"A grouping for your projects and professional work.", connect:["writing"] },
+  { id:"writing", type:"branch", parent:"self", label:"Writing", kind:"Area", accent:"green",
+    subtitle:"Things I think through in words.",
+    body:"A grouping for essays, notes, and research." },
+  { id:"play", type:"branch", parent:"self", label:"Experiments", kind:"Area", accent:"purple",
+    subtitle:"Things I make to learn.",
+    body:"A grouping for side projects and open-ended experiments." },
+
+  // items under Work, this first one also carries an image satellite and a link satellite
+  { id:"proj-a", type:"leaf", parent:"work", label:"Project One", kind:"Project",
+    subtitle:"One line on what it is.", meta:{ year:"2024", role:"Design & Build" },
+    body:"A short, honest description - what it was, what you did, why it mattered.",
+    connect:["essay-a","exp-a"], further:[{label:"Live site", url:"#"}],
+    images:[{src:IMG_PLACEHOLDER, alt:"Project One preview"}] },
+  { id:"proj-b", type:"leaf", parent:"work", label:"Project Two", kind:"Project",
+    subtitle:"One line on what it is.", meta:{ year:"2023", role:"Lead" },
+    body:"Another short description. Swap in your own.", connect:["exp-b"] },
+
+  // items under Writing
+  { id:"essay-a", type:"leaf", parent:"writing", label:"An Essay", kind:"Essay",
+    subtitle:"The idea in a sentence.", meta:{ year:"2024" },
+    body:"What the piece argues, briefly.", connect:["note-a","proj-a"],
+    further:[{label:"Read it", url:"#"}] },
+  { id:"note-a", type:"leaf", parent:"writing", label:"Working Note", kind:"Note",
+    subtitle:"A thought in progress.", meta:{ status:"Ongoing" },
+    body:"Short, unfinished thinking - the kind that later becomes a project." },
+
+  // items under Experiments
+  { id:"exp-a", type:"leaf", parent:"play", label:"Sketch No. 1", kind:"Experiment",
+    subtitle:"A small interactive study.", meta:{ year:"2024" },
+    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
+  { id:"exp-b", type:"leaf", parent:"play", label:"Sketch No. 2", kind:"Experiment",
+    subtitle:"Another small study.", meta:{ year:"2022" },
+    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
+];
+
+// which symbol each area's items use, the key is a branch id and every leaf under it gets that shape
+const AREA_SHAPE = { work:"triangle", writing:"square", play:"circle" };
+
+// from here down is the engine, it rarely needs editing
+
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));   // makes text safe to drop into html so it can't break the markup
+
+const byId = new Map(DATA.map(d=>[d.id,d]));   // a map of id to node for quick lookups
+const adj = new Map(DATA.map(d=>[d.id,new Set()]));   // adjacency: every node's set of neighbours
+const parentPair = new Set();                          // remembers which links are parent to child so we can tell solid from dotted
+function join(a,b,hier){ if(a!==b&&byId.has(a)&&byId.has(b)){ adj.get(a).add(b); adj.get(b).add(a); if(hier) parentPair.add([a,b].sort().join("::")); } }   // records a two-way connection, marking it as hierarchy when hier is true
+DATA.forEach(d=>{ if(d.parent) join(d.parent,d.id,true); (d.connect||[]).forEach(c=>join(d.id,c,false)); });   // build the connections: parent links are solid, connect links are dotted
+const isHier=(a,b)=>parentPair.has([a,b].sort().join("::"));   // true if this link is a solid parent link
+const nid=x=>x&&x.id!==undefined?x.id:x;                        // gets an id whether it was given a node or an id
+function accentOf(n){ if(!n||!n.accent) return ACCENTS.orange; return ACCENTS[n.accent]||n.accent; }   // resolves a node's accent: a palette name, a raw hex, or the default orange
+
+function shapeOf(d){ if(d.shape)return d.shape; if(d.type==="root")return"flower"; if(d.type==="branch")return"hexagon"; return AREA_SHAPE[d.parent]||"circle"; }   // decides a node's shape, honouring an override first
+const sizeOf=d=> d.type==="root"?16 : d.type==="branch"?12 : 8;   // a node's radius in pixels by type
+
+const graphEl=document.getElementById("graph");
+const svg=d3.select("#graph").append("svg");
+const linkG=svg.append("g"), nodeG=svg.append("g");   // linkG is drawn first so nodes always sit in front of the lines
+let W=graphEl.clientWidth,H=graphEl.clientHeight; svg.attr("viewBox",[0,0,W,H]);
+const PAD=64, clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));   // PAD keeps nodes this far from the edge
+
+// how much space each node clears around itself, satellites use ~5 because their true rectangle does the real work in rectForce
+const collideR = d => d.itype==="info-text"?5 : d.itype==="info-link"?5
+                    : d.type==="root"?54 : d.type==="branch"?48 : 42;
+
+// the physics simulation, tweak these to change how the tree feels: velocityDecay is damping, alphaTarget keeps it gently alive, link distance is how far connected nodes rest, charge is how hard nodes push apart, cx/cy pull toward the centre
+const sim=d3.forceSimulation([])
+  .velocityDecay(.83).alphaTarget(.006).alphaMin(0)
+  .force("link",d3.forceLink([]).id(d=>d.id)
+     .distance(l=> l.target.itype==="info-text"?175 : l.target.itype==="info-image"?165 : l.target.itype==="info-link"?135 : 160)
+     .strength(l=> l.info?.28:.5))
+  .force("charge",d3.forceManyBody().strength(-560).distanceMax(520))
+  .force("collide",d3.forceCollide().radius(collideR).strength(.95).iterations(4))
+  .force("cx",d3.forceX(W/2).strength(.05))
+  .force("cy",d3.forceY(H/2).strength(.05))
+  .force("fx",d3.forceX(W/2).strength(n=> n.id===focusId?0.15:0))   // a stronger pull that keeps the centre node in the middle and drifts it home after a drag
+  .force("fy",d3.forceY(H/2).strength(n=> n.id===focusId?0.15:0));
+
+function halfBox(n){          // half-size and centre of a node, using its measured rectangle if it has one, otherwise a circle
+  if(n._w) return {hw:n._w/2, hh:n._h/2, cx:n.x+n._ox+n._w/2, cy:n.y+n._oy+n._h/2};
+  const r=collideR(n); return {hw:r, hh:r, cx:n.x, cy:n.y};
+}
+function rectForce(){          // a custom force so a satellite's whole rectangle pushes other nodes away (the built-in collision only understands circles)
+  let nodes=[];
+  function force(alpha){
+    const boxes=nodes.filter(n=>n._w);        // only satellites have a measured box (_w)
+    for(const r of boxes){
+      const R=halfBox(r);
+      for(const o of nodes){
+        if(o===r) continue;
+        const O=halfBox(o);
+        const dx=O.cx-R.cx, dy=O.cy-R.cy;
+        const ox=(R.hw+O.hw+8)-Math.abs(dx);   // how much they overlap horizontally (with 8px padding)
+        const oy=(R.hh+O.hh+8)-Math.abs(dy);   // and vertically
+        if(ox>0 && oy>0){                       // if they overlap, push apart along the shorter axis
+          if(ox<oy){ const s=(dx<0?-1:1)*ox*alpha; o.vx+=s*.6; if(r.id!==focusId) r.vx-=s*.4; }
+          else     { const s=(dy<0?-1:1)*oy*alpha; o.vy+=s*.6; if(r.id!==focusId) r.vy-=s*.4; }
+        }
+      }
+    }
+  }
+  force.initialize=n=>{ nodes=n; };
+  return force;
+}
+sim.force("rectRepel", rectForce());
+
+let focusId="self",     // the node currently in the centre
+    hoverId=null,       // the node currently hovered (drives the accent highlight)
+    infoFor=null,       // the node whose satellites are currently shown
+    firstLoad=true;     // true only for the opening entrance animation
+const posCache=new Map();          // remembers node positions so they don't jump on rebuild
+let prevIds=new Set();             // ids that were on screen last render, so we can tell which are new
+let node=nodeG.selectAll("g.node"), link=linkG.selectAll("line");
+
+function buildVisible(){          // works out which base nodes and links are visible right now (the focus plus its neighbours)
+  const ids=new Set([focusId,...adj.get(focusId)]);
+  const fc=posCache.get(focusId)||{x:W/2,y:H/2};
+  const nodes=[...ids].map(id=>{ const p=posCache.get(id);
+    const start=firstLoad?{x:W/2,y:H/2}:(p||{x:fc.x,y:fc.y});   // new nodes start at the centre and fly out
+    return Object.assign({},byId.get(id),{x:start.x,y:start.y}); });
+  const seen=new Set(),links=[];
+  ids.forEach(a=>adj.get(a).forEach(b=>{ const k=[a,b].sort().join("::");
+    if(ids.has(b)&&!seen.has(k)){ seen.add(k); links.push({source:a,target:b,cross:!isHier(a,b)}); } }));
+  return {nodes,links};
+}
+
+function buildInfo(id){          // builds a node's satellites (its text, images and links), fanned outward into open space so they have room to breathe
+  const d=byId.get(id); const nodes=[],links=[];
+  if(!d) return {nodes,links};
+  const base=posCache.get(id)||{x:W/2,y:H/2};
+  const items=[];
+  if(d.subtitle||d.body||d.meta) items.push({suffix:"text",itype:"info-text",payload:{subtitle:d.subtitle,body:d.body,meta:d.meta}});
+  (d.images||[]).forEach((im,i)=> items.push({suffix:"img"+i,itype:"info-image",payload:{src:im.src,alt:im.alt||""}}));
+  (d.further||[]).forEach((l,i)=> items.push({suffix:"link"+i,itype:"info-link",payload:{ltext:l.label,lurl:l.url}}));
+  let dx=base.x-W/2, dy=base.y-H/2; const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;   // the direction away from the centre, so satellites fan outward
+  const baseAng=Math.atan2(dy,dx), n=items.length;
+  items.forEach((it,i)=>{
+    const nidd=id+"__"+it.suffix, cached=posCache.get(nidd);
+    const ang=baseAng+(i-(n-1)/2)*0.7;     // spread the satellites apart in a fan
+    const dist=it.itype==="info-text"?165 : it.itype==="info-image"?150 : 130;
+    const start=cached||{x:base.x+Math.cos(ang)*dist, y:base.y+Math.sin(ang)*dist};
+    nodes.push(Object.assign({id:nidd,itype:it.itype,parentId:id},it.payload,{x:start.x,y:start.y}));
+    links.push({source:id,target:nidd,info:true});
+  });
+  return {nodes,links};
+}
+
+function drawShape(sel){          // draws the contents of one node group, this runs once when a node first appears
+  sel.each(function(d){
+    const g=d3.select(this);
+
+    if(d.itype==="info-text"){          // a satellite text block (subtitle + body + meta)
+      const TW=160;                                        // text column width in pixels
+      const back=g.append("rect").attr("class","iback");   // invisible paper mask so lines stop at the edge
+      const hit=g.append("rect").attr("class","ihit");     // invisible hover area
+      const fo=g.append("foreignObject").attr("class","fo").attr("width",TW).attr("height",340).attr("x",-TW/2).attr("y",-46);
+      let html="";
+      if(d.subtitle) html+=`<div class="a-sub">${esc(d.subtitle)}</div>`;
+      if(d.body) html+=`<div class="a-body">${esc(d.body)}</div>`;
+      if(d.meta){ const mk=Object.keys(d.meta).map(k=>`${esc(k)} ${esc(d.meta[k])}`); if(mk.length) html+=`<div class="a-meta">${mk.join("&nbsp;&nbsp;·&nbsp;&nbsp;")}</div>`; }
+      const div=fo.append("xhtml:div").attr("class","anno").html(html);
+      const place=()=>{ const h=Math.max(28,(div.node()&&div.node().offsetHeight)||90);   // measure the real height once rendered, then centre the block and size its mask and hit box (lower the two "+" numbers below for tighter padding)
+        const BW=TW+10, BH=h+10;
+        d._w=BW; d._h=BH; d._ox=-BW/2; d._oy=-BH/2;          // the box used for repulsion and line clipping
+        fo.attr("y",-h/2).attr("height",h);
+        back.attr("x",-BW/2).attr("y",-BH/2).attr("width",BW).attr("height",BH);
+        hit.attr("x",-TW/2).attr("y",-h/2).attr("width",TW).attr("height",h);   // the hit-box matches the text itself
+      };
+      requestAnimationFrame(place); setTimeout(place,80);
+      return;
+    }
+
+    if(d.itype==="info-image"){          // a satellite image
+      const back=g.append("rect").attr("class","iback");
+      const hit=g.append("rect").attr("class","ihit");
+      const fo=g.append("foreignObject").attr("class","fo").attr("width",150).attr("height",160).attr("x",-75).attr("y",-70);
+      fo.append("xhtml:div").attr("class","aimg").html(`<img src="${esc(d.src||"")}" alt="${esc(d.alt||"")}">`);
+      const place=()=>{ const el=fo.node()&&fo.node().querySelector(".aimg");   // images load asynchronously so we re-measure once the image is ready
+        const w=Math.max(40,(el&&el.offsetWidth)||120), h=Math.max(30,(el&&el.offsetHeight)||92);
+        const BW=w+8, BH=h+8;
+        d._w=BW; d._h=BH; d._ox=-BW/2; d._oy=-BH/2;
+        fo.attr("width",w+4).attr("height",h+4).attr("x",-(w+4)/2).attr("y",-(h+4)/2);
+        back.attr("x",-BW/2).attr("y",-BH/2).attr("width",BW).attr("height",BH);
+        hit.attr("x",-w/2).attr("y",-h/2).attr("width",w).attr("height",h);   // the hit-box matches the image itself
+      };
+      const img=fo.node()&&fo.node().querySelector("img");
+      if(img){ img.onload=place; if(img.complete) place(); }
+      requestAnimationFrame(place); setTimeout(place,120);
+      return;
+    }
+
+    if(d.itype==="info-link"){          // a satellite link
+      const back=g.append("rect").attr("class","iback");
+      const hit=g.append("rect").attr("class","ihit");
+      const fo=g.append("foreignObject").attr("class","fo").attr("width",220).attr("height",34).attr("x",-110).attr("y",-17);
+      fo.append("xhtml:div").attr("class","alink").html(`<a href="${esc(d.lurl||"#")}" target="_blank" rel="noopener">${esc(d.ltext||"Link")} ↗</a>`);
+      const place=()=>{ const a=fo.node()&&fo.node().querySelector("a");
+        const tw=Math.max(40,(a&&a.offsetWidth)||90), th=Math.max(14,(a&&a.offsetHeight)||16);
+        const BW=tw+10, BH=th+8;
+        d._w=BW; d._h=BH; d._ox=-BW/2; d._oy=-BH/2;
+        fo.attr("width",tw+4).attr("height",th+6).attr("x",-(tw+4)/2).attr("y",-(th+6)/2);
+        back.attr("x",-BW/2).attr("y",-BH/2).attr("width",BW).attr("height",BH);
+        hit.attr("x",-tw/2).attr("y",-th/2).attr("width",tw).attr("height",th);   // the hit-box matches the link text itself
+      };
+      requestAnimationFrame(place); setTimeout(place,80);
+      return;
+    }
+
+    // a normal node (root, branch or leaf)
+    const s=sizeOf(d),shp=shapeOf(d),focused=d.id===focusId,acc=accentOf(d);
+    const ic=g.append("g").attr("class","icon");               // the wrapper we swell on hover
+    ic.append("circle").attr("class","moat").attr("r",s+6);   // the paper gap so crossing lines break cleanly
+
+    if(shp==="flower"){          // the flower: eight petals in a slowly turning group, tinted with the node's accent
+      const pg=ic.append("g").attr("class","flowerSpin");
+      for(let i=0;i<8;i++) pg.append("ellipse").attr("class","petal").attr("rx",s*0.34).attr("ry",s*0.62).attr("transform",`rotate(${i*45}) translate(0,${-s*0.42})`).style("fill",acc);
+      ic.append("circle").attr("class","flowerCore").attr("r",s*0.30);
+    } else if(shp==="compass"){          // the compass: a static ring with a slowly turning two-tone needle (north half accent, south half ink)
+      ic.append("circle").attr("class","shape").attr("r",s);
+      const cg=ic.append("g").attr("class","flowerSpin");
+      const ny=s*0.74, nx=s*0.22;
+      cg.append("polygon").attr("class","needleN").attr("points",`0,${-ny} ${nx},0 ${-nx},0`).style("fill",acc);
+      cg.append("polygon").attr("class","needleS").attr("points",`0,${ny} ${nx},0 ${-nx},0`);
+      ic.append("circle").attr("class","flowerCore").attr("r",s*0.13);
+    } else if(shp==="poolball"){          // the pool ball: a solid disc (coloured by the node's accent) with a smaller spot that orbits as it spins
+      ic.append("circle").attr("class","ballOuter").attr("r",s).style("fill",acc);
+      const sg=ic.append("g");
+      sg.append("circle").attr("class","ballSpot").attr("r",s*0.44).attr("cx",-s*0.16).attr("cy",-s*0.16);
+      sg.append("animateTransform").attr("attributeName","transform").attr("type","rotate").attr("from","0 0 0").attr("to","360 0 0").attr("dur","9s").attr("repeatCount","indefinite");
+    } else if(shp==="hexagon"){
+      const pts=d3.range(6).map(i=>{const a=Math.PI/180*(60*i-90);return[s*Math.cos(a),s*Math.sin(a)];});
+      ic.append("polygon").attr("class","shape").attr("points",pts.map(p=>p.join(",")).join(" "));
+    } else if(shp==="triangle"){
+      ic.append("polygon").attr("class","shape").attr("points",`0,${-s} ${s*0.92},${s*0.7} ${-s*0.92},${s*0.7}`);
+    } else if(shp==="square"){
+      ic.append("rect").attr("class","shape").attr("x",-s*0.82).attr("y",-s*0.82).attr("width",s*1.64).attr("height",s*1.64);
+    } else {
+      ic.append("circle").attr("class","shape").attr("r",s);
+    }
+
+    // the inner mark: a ✕ on the current node, a count inside area hexagons, or a dot on leaves
+    if(focused && shp!=="flower" && shp!=="compass" && shp!=="poolball"){
+      const m=s*0.34;
+      ic.append("path").attr("class","xmark").attr("d",`M${-m},${-m}L${m},${m}M${m},${-m}L${-m},${m}`);
+    } else if(shp==="hexagon"){
+      ic.append("text").attr("class","count").text(adj.get(d.id).size);
+    } else if(shp!=="flower" && shp!=="compass" && shp!=="poolball"){
+      ic.append("circle").attr("class","mark").attr("r",1.7).attr("cy", shp==="triangle"?s*0.18:0);
+    }
+
+    // the label(s) below the symbol
+    const ly=s+15;
+    if(d.type==="root"){
+      g.append("text").attr("class","lbl").attr("y",ly+1).text(d.label);
+      if(d.sub) g.append("text").attr("class","kind").attr("y",ly+14).text(d.sub);
+    } else if(d.type==="branch"){
+      g.append("text").attr("class","lbl").attr("y",ly).text(d.label);
+    } else {
+      g.append("text").attr("class","lbl").attr("y",ly).text(d.label);
+      if(d.kind) g.append("text").attr("class","kind").attr("y",ly+12).text(d.kind);
+    }
+
+    // a transparent grab area on top of the whole node so pressing the icon or the label picks it up (hw is the half-width, the centre matches the others just a touch bigger)
+    const hw = d.type==="root"?42 : d.type==="branch"?40 : 38;
+    g.append("rect").attr("class","hit").attr("x",-hw).attr("y",-s-8).attr("width",hw*2).attr("height",(2*s)+42);
+  });
+}
+
+// dragging a node, clamped to the screen; on release we clear its fixed position so the physics drifts it back (the centre node included, pulled home by its stronger centering force). dragMoved lets us ignore the click that follows a drag
+let dragMoved=false, grabOX=0, grabOY=0;
+const drag=d3.drag()
+  .on("start",(e,d)=>{ sim.alphaTarget(.3).restart(); dragMoved=false;
+    const [mx,my]=d3.pointer(e, svg.node()); grabOX=d.x-mx; grabOY=d.y-my;   // remember where on the node you grabbed
+    d.fx=clamp(d.x,PAD,W-PAD); d.fy=clamp(d.y,PAD,H-PAD); })
+  .on("drag",(e,d)=>{ dragMoved=true; const [mx,my]=d3.pointer(e, svg.node());   // the pointer in the svg's own coordinates
+    d.fx=clamp(mx+grabOX,PAD,W-PAD); d.fy=clamp(my+grabOY,PAD,H-PAD); })
+  .on("end",(e,d)=>{ sim.alphaTarget(.006); d.fx=null; d.fy=null; });   // let go, the forces drift it home
+
+// hover handling: showing and hiding a node's satellites; hideTimer gives you a moment to move onto a satellite before it retracts
+let hideTimer=null;
+function scheduleHide(){ clearTimeout(hideTimer); hideTimer=setTimeout(()=>{ hoverId=null; if(infoFor){ infoFor=null; sync(.28); } paint(); },400); }
+function onEnter(e,d){ clearTimeout(hideTimer); if(d.itype) return;   // hovering a satellite just keeps things alive
+  hoverId=d.id; if(infoFor!==d.id){ infoFor=d.id; sync(.35); } paint(); }
+function onLeave(e,d){ scheduleHide(); }
+function onClick(e,d){ e.stopPropagation(); if(dragMoved){ dragMoved=false; return; } if(d.itype) return; travel(d.id); }   // clicking a node travels into it, but a drag is not a click
+
+const linkKey=d=>[nid(d.source),nid(d.target)].sort().join("::");                   // a stable id for a link so d3 can match them across rebuilds
+function nodeClass(d){ return d.itype ? "node info "+d.itype : "node "+d.type+(d.id===focusId?" focus":""); }   // the css classes for a node group
+
+function sync(energy){          // the main redraw, rebuilds the visible nodes and links (plus any satellites) and hands them to the simulation; energy is how much motion the change kicks off
+  const base=buildVisible();
+  const info=infoFor?buildInfo(infoFor):{nodes:[],links:[]};
+  const nodes=base.nodes.concat(info.nodes);
+  const links=base.links.concat(info.links);
+  // on first load hold every node pinned at the centre (the hidden ones stacked behind the name) so nothing jostles the name while it sits alone, and give each other node an entrance index
+  if(firstLoad){ let ei=0; nodes.forEach(n=>{ if(n.id===focusId){ n.fx=W/2; n.fy=H/2; } else { n.fx=W/2; n.fy=H/2; n._ei=ei++; } }); }
+  sim.nodes(nodes); sim.force("link").links(links);
+  sim.alpha(energy||.9).restart();
+
+  // work out which nodes are new this render and give each a spawn order (_si), so their lines can be timed to appear with them rather than before them
+  if(!firstLoad){ let si=0; nodes.forEach(n=>{ if(!prevIds.has(n.id)){ n._new=true; n._si=si++; } else { n._new=false; } }); }
+  prevIds=new Set(nodes.map(n=>n.id));
+
+  // update the lines, fading new ones in and removed ones out
+  link=linkG.selectAll("line").data(links,linkKey);
+  link.exit().transition().duration(230).style("opacity",0).remove();
+  link=link.enter().append("line").attr("class",d=>"link"+((d.cross||d.info)?" cross":"")).style("opacity",0).merge(link);
+  link.transition().duration(firstLoad?600:420).delay(d=>{
+      if(firstLoad) return 1300+(((d.target&&d.target._ei)||0)*200);
+      const sa=(d.source&&d.source._new)?d.source._si:-1, sb=(d.target&&d.target._new)?d.target._si:-1;
+      const mx=Math.max(sa,sb);
+      return mx<0 ? 0 : mx*90+70;   // draw each line just after its own node has appeared
+    }).style("opacity",null);
+
+  // update the nodes
+  node=nodeG.selectAll("g.node").data(nodes,d=>d.id);
+  node.exit().transition().duration(230).style("opacity",0).remove();
+  const enter=node.enter().append("g").attr("class",nodeClass).style("opacity",0).call(drag)
+    .on("click",onClick).on("mouseenter",onEnter).on("mouseleave",onLeave);
+  drawShape(enter);
+  // the opening entrance fades the name in alone first then attaches the others in turn; on every later rebuild (travelling) new nodes still spawn staggered by their spawn order
+  if(firstLoad) enter.transition().duration(650).delay(d=>d.id===focusId?0:(1150+((d._ei||0)*200))).style("opacity",1);
+  else enter.transition().duration(420).delay(d=> (d._si||0)*90).style("opacity",1);
+  node=enter.merge(node).attr("class",nodeClass);
+  refreshMarks(node);
+  paint();
+}
+
+function refreshMarks(sel){          // keeps the ✕, count and dot correct as the centre changes when you travel
+  sel.each(function(d){
+    if(d.itype) return;
+    const g=d3.select(this), ic=g.select(".icon"), s=sizeOf(d), shp=shapeOf(d), focused=d.id===focusId;
+    g.selectAll(".xmark,.mark,.count").remove();
+    if(focused && shp!=="flower" && shp!=="compass" && shp!=="poolball"){
+      const m=s*0.34;
+      ic.append("path").attr("class","xmark").attr("d",`M${-m},${-m}L${m},${m}M${m},${-m}L${-m},${m}`);
+    } else if(shp==="hexagon"){
+      ic.append("text").attr("class","count").text(adj.get(d.id).size);
+    } else if(shp!=="flower" && shp!=="compass" && shp!=="poolball"){
+      ic.append("circle").attr("class","mark").attr("r",1.7).attr("cy", shp==="triangle"?s*0.18:0);
+    }
+  });
+}
+
+function paint(){          // the highlight: fades everything except the active node and its neighbours, and colours the hot lines; on the home page each line takes its OWN node's accent, inside a node they all use that node's accent
+  const id=hoverId||focusId; const keep=new Set([id,...adj.get(id)]);
+  const acc=accentOf(byId.get(id));
+  const homeMain = byId.get(id) && byId.get(id).type==="root";   // true when the name/root node is the active one
+  node.classed("dim",d=> d.itype?false:!keep.has(d.id));
+  node.select(".shape").style("stroke", d=> (d.id===id && shapeOf(d)!=="compass") ? acc : null);   // the active node's ring takes its accent (the compass ring stays black)
+  const isHot=d=> !d.info && (nid(d.source)===id||nid(d.target)===id);
+  link.classed("dim",d=> d.info?false:!(nid(d.source)===id||nid(d.target)===id))
+      .classed("hot",isHot)
+      .style("stroke",d=>{
+        if(!isHot(d)) return null;
+        if(homeMain){ const other = nid(d.source)===id ? nid(d.target) : nid(d.source); return accentOf(byId.get(other)); }  // on home each line matches its own node
+        return acc;   // inside a node the lines use that node's accent
+      });
+}
+
+function clipPoint(n, fx, fy){          // stops a line at a node's boundary plus a small gap so lines meet edges, not centres; CLIPGAP is that gap in pixels
+  const dx=fx-n.x, dy=fy-n.y;
+  if(n._w){ const hw=n._w/2+CLIPGAP, hh=n._h/2+CLIPGAP;   // a satellite: clip to its rectangle
+    const s=1/Math.max(Math.abs(dx)/hw, Math.abs(dy)/hh, 1e-6);
+    return [n.x+dx*s, n.y+dy*s];
+  }
+  const r=sizeOf(n)+CLIPGAP, d=Math.hypot(dx,dy)||1;       // a normal node: clip to a circle
+  return [n.x+dx/d*r, n.y+dy/d*r];
+}
+const CLIPGAP=6;
+
+sim.on("tick",()=>{          // runs every animation frame: keep nodes on-screen, then position the lines and nodes
+  sim.nodes().forEach(n=>{ n.x=clamp(n.x,PAD,W-PAD); n.y=clamp(n.y,PAD,H-PAD); });
+  link.each(function(d){
+    const [x1,y1]=clipPoint(d.source, d.target.x, d.target.y);
+    const [x2,y2]=clipPoint(d.target, d.source.x, d.source.y);
+    this.setAttribute("x1",x1); this.setAttribute("y1",y1);
+    this.setAttribute("x2",x2); this.setAttribute("y2",y2);
+  });
+  node.attr("transform",d=>`translate(${d.x},${d.y})`).each(d=>posCache.set(d.id,{x:d.x,y:d.y}));
+});
+
+function travel(id){ if(!byId.has(id)||id===focusId) return; focusId=id; hoverId=null; infoFor=null; sync(.9); }   // travel into a node: it becomes the new centre and the tree rebuilds around it
+svg.on("click",()=>{ if(focusId!=="self") travel("self"); });   // clicking empty space returns you to the root
+
+new ResizeObserver(()=>{ W=graphEl.clientWidth; H=graphEl.clientHeight; svg.attr("viewBox",[0,0,W,H]);   // keep everything centred and sized when the window changes size
+  sim.force("cx",d3.forceX(W/2).strength(.05)); sim.force("cy",d3.forceY(H/2).strength(.05));
+  sim.force("fx",d3.forceX(W/2).strength(n=> n.id===focusId?0.15:0)); sim.force("fy",d3.forceY(H/2).strength(n=> n.id===focusId?0.15:0));
+  sim.alpha(.5).restart();
+}).observe(graphEl);
+
+sync(.9); firstLoad=false;   // draw once to start, then turn off the first-load entrance flag
+// the entrance: the name is pinned alone at the centre (done in sync), then each other node is released from the centre in turn to fly out and attach, and once everything has settled the name is freed so it can drift normally
+let lastRelease=1150;
+sim.nodes().forEach(n=>{ if(n.id!==focusId){ const t=1150+((n._ei||0)*200); lastRelease=Math.max(lastRelease,t);
+  setTimeout(()=>{ n.fx=null; n.fy=null; sim.alpha(.7).restart(); }, t); } });
+setTimeout(()=>{ const r=sim.nodes().find(n=>n.id===focusId); if(r){ r.fx=null; r.fy=null; } sim.alpha(.4).restart(); }, lastRelease+450);
+</script>
+</body>
+</html>
