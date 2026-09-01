@@ -142,63 +142,46 @@ const DATA = [
 
   // the five top-level areas, each carries its own accent colour which tints its highlighted lines and ring
   { id:"gallery", type:"branch", parent:"self", label:"Gallery", kind:"Area", accent:"blue",
-    subtitle:"Things I build and ship.",
-    body:"A grouping for your projects and professional work." },
+    subtitle:"Photographs and film.",
+    body:"A collection of my favourite images featuring both myself and friends." },
   { id:"goals", type:"branch", parent:"self", label:"Goals", kind:"Area", accent:"green",
-    subtitle:"Things I think through in words.",
-    body:"A grouping for essays, notes, and research.", connect:["interests"] },
+    subtitle:"Where I'm headed.",
+    body:"What I'm working towards and the milestones I hope to achieve.", connect:["interests"] },
   { id:"inspirations", type:"branch", parent:"self", label:"Inspirations", kind:"Area", accent:"purple",
-    subtitle:"Things I make to learn.",
-    body:"A grouping for side projects and open-ended experiments.",  connect:["interests"] },
+    subtitle:"References and things I'm drawn to.",
+    body:"People, images and ideas I collect across everything I do.", connect:["interests"] },
   { id:"interests", type:"branch", parent:"self", label:"Interests", kind:"Area", accent:"yellow",
-    subtitle:"Things I make to learn.",
-    body:"A grouping for side projects and open-ended experiments." },
+    subtitle:"What I keep coming back to.",
+    body:"The hobbies and activities I spend my time on, from mountain biking and surfing to design and photography." },
   { id:"projects", type:"branch", parent:"self", label:"Projects", kind:"Area", accent:"red",
-    subtitle:"Things I make to learn.",
-    body:"A grouping for side projects and open-ended experiments.", connect:["gallery", "interests", "inspirations"] },
+    subtitle:"Things I'm building.",
+    body:"My work across my wide range of interests.", connect:["gallery","interests","inspirations"] },
 
-  // items under Gallery, this first one also carries an image satellite and a link satellite
+  // items under Gallery (add more items under any area with the template below)
   { id:"proj-a", type:"leaf", parent:"gallery", label:"Switzerland 2026", kind:"Project",
     subtitle:"Kodak Ultramax 400",
     body:"Exploring Switzerland on film.",
-    connect:["goal-a"],
     images:[{src:"assets/image-morteratsch.jpg", alt:"Morteratsch Glacier"}, {src:"assets/image-matterhorn.jpg", alt:"Matterhorn"}, {src:"assets/image-zermatt.jpg", alt:"Zermatt"}] },
-  { id:"proj-b", type:"leaf", parent:"gallery", label:"Project Two", kind:"Project",
-    subtitle:"One line on what it is.", meta:{ year:"2023", role:"Lead" },
-    body:"Another short description. Swap in your own.", connect:["exp-b"] },
 
-  // items under Goals
-  { id:"goal-a", type:"leaf", parent:"goals", label:"An Essay", kind:"Essay",
-    subtitle:"The idea in a sentence.", meta:{ year:"2024" },
-    body:"What the piece argues, briefly.", connect:["note-a","proj-a"],
-    further:[{label:"Read it", url:"#"}] },
-  { id:"note-a", type:"leaf", parent:"goals", label:"Working Note", kind:"Note",
-    subtitle:"A thought in progress.", meta:{ status:"Ongoing" },
-    body:"Short, unfinished thinking - the kind that later becomes a project." },
-
-  // items under Inspirations
-  { id:"exp-a", type:"leaf", parent:"inspirations", label:"Sketch No. 1", kind:"Experiment",
-    subtitle:"A small interactive study.", meta:{ year:"2024" },
-    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
-  { id:"exp-b", type:"leaf", parent:"inspirations", label:"Sketch No. 2", kind:"Experiment",
-    subtitle:"Another small study.", meta:{ year:"2022" },
-    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
-
-  // items under Interests
-  { id:"exp-a", type:"leaf", parent:"interests", label:"Sketch No. 1", kind:"Experiment",
-    subtitle:"A small interactive study.", meta:{ year:"2024" },
-    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
-  { id:"exp-b", type:"leaf", parent:"interests", label:"Sketch No. 2", kind:"Experiment",
-    subtitle:"Another small study.", meta:{ year:"2022" },
-    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
-
-  // items under Projects
-  { id:"exp-a", type:"leaf", parent:"projects", label:"Sketch No. 1", kind:"Experiment",
-    subtitle:"A small interactive study.", meta:{ year:"2024" },
-    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
-  { id:"exp-b", type:"leaf", parent:"projects", label:"Sketch No. 2", kind:"Experiment",
-    subtitle:"Another small study.", meta:{ year:"2022" },
-    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
+  // ─── node template ─────────────────────────────────────────────────────
+  // this block is commented out, so it never renders. to add a node: copy it,
+  // uncomment the lines, give it a unique id, and set parent to the area it sits
+  // under (gallery | goals | inspirations | interests | projects). only id,
+  // type, parent and label are required - delete any field you don't need.
+  // { id:"unique-id",               // no spaces, must be unique (other nodes point at this)
+  //   type:"leaf",                  // "leaf" for an item, or "branch" for a new top-level area
+  //   parent:"gallery",             // the node this hangs off, draws the solid line
+  //   label:"Node name",            // the short name shown on the map
+  //   kind:"Project",               // the small grey word under the label
+  //   subtitle:"One-line descriptor.",           // top line of the hover text block
+  //   body:"A sentence or two describing it.",   // the longer hover description
+  //   meta:{ year:"2026", role:"Lead" },         // optional key/value pairs shown in the block
+  //   connect:["proj-a"],                        // optional dotted cross-links to other ids
+  //   further:[{ label:"Live site", url:"https://example.com" }],  // optional links
+  //   images:[{ src:"assets/photo.jpg", alt:"caption" }],          // optional images
+  //   shape:"circle",               // optional: flower|compass|poolball|hexagon|triangle|square|circle
+  //   accent:"blue" },              // optional palette name or hex, tints this node's lines and ring
+  // ────────────────────────────────────────────────────────────────────────
 ];
 
 // which symbol each area's items use, the key is a branch id and every leaf under it gets that shape
