@@ -61,7 +61,7 @@
   .node .ballOuter{stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke;}   /* the pool ball disc, its fill is set per node */
   .node .ballSpot{fill:var(--paper);stroke:none;}   /* the smaller off-centre spot on the pool ball */
   .node .mark{fill:var(--ink);animation:nt-pulse 1.5s ease-in-out infinite;}   /* the tiny dot inside a leaf symbol, it fades in and out but keeps its size */
-  @keyframes nt-pulse{0%,100%{opacity:.3;}5%{opacity:1;}}
+  @keyframes nt-pulse{0%,100%{opacity:0;}50%{opacity:1;}}
   .node .xmark{stroke:var(--ink);stroke-width:1;stroke-linecap:round;}  /* the ✕ drawn on the current node */
   .node .count{font-size:9px;fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none;}   /* the connection count shown inside an area hexagon */
 
