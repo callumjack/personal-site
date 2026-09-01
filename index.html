@@ -134,22 +134,22 @@ const DATA = [
            instagram:"@callumdoescoolstuff"},
     connect:["gallery","goals","inspirations","interests","projects"] },
 
-  // the three top-level areas, each carries its own accent colour which tints its highlighted lines and ring
+  // the five top-level areas, each carries its own accent colour which tints its highlighted lines and ring
   { id:"gallery", type:"branch", parent:"self", label:"Gallery", kind:"Area", accent:"blue",
     subtitle:"Things I build and ship.",
-    body:"A grouping for your projects and professional work.", connect:["writing"] },
+    body:"A grouping for your projects and professional work." },
   { id:"goals", type:"branch", parent:"self", label:"Goals", kind:"Area", accent:"green",
     subtitle:"Things I think through in words.",
-    body:"A grouping for essays, notes, and research." },
+    body:"A grouping for essays, notes, and research.", connect:["interests"] },
   { id:"inspirations", type:"branch", parent:"self", label:"Inspirations", kind:"Area", accent:"purple",
     subtitle:"Things I make to learn.",
-    body:"A grouping for side projects and open-ended experiments." },
+    body:"A grouping for side projects and open-ended experiments.",  connect:["interests"] },
   { id:"interests", type:"branch", parent:"self", label:"Interests", kind:"Area", accent:"yellow",
     subtitle:"Things I make to learn.",
     body:"A grouping for side projects and open-ended experiments." },
   { id:"projects", type:"branch", parent:"self", label:"Projects", kind:"Area", accent:"red",
     subtitle:"Things I make to learn.",
-    body:"A grouping for side projects and open-ended experiments." },
+    body:"A grouping for side projects and open-ended experiments.", connect:["gallery", "interests", "inspirations"] },
 
   // items under Gallery, this first one also carries an image satellite and a link satellite
   { id:"proj-a", type:"leaf", parent:"gallery", label:"Project One", kind:"Project",
