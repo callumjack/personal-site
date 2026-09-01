@@ -91,6 +91,12 @@
   .aimg img{display:block;width:clamp(84px,26vw,118px);height:auto;}   /* an image satellite shrinks on narrow screens so it never overflows */
 
   @media print{ body{overflow:visible;} svg{height:86vh;} }   /* let the page show normally when printed */
+  @media (max-width:600px){          /* on phones, trim the satellite text and labels a little so blocks stay compact */
+    .anno .a-body{font-size:12px;line-height:1.5;}
+    .anno .a-sub{font-size:11.5px;}
+    .node .lbl{font-size:10.5px;}
+    .node.root .lbl{font-size:14px;}
+  }
 </style>
 </head>
 <body>
@@ -218,19 +224,22 @@ const graphEl=document.getElementById("graph");
 const svg=d3.select("#graph").append("svg");
 const linkG=svg.append("g"), nodeG=svg.append("g");   // linkG is drawn first so nodes always sit in front of the lines
 let W=graphEl.clientWidth,H=graphEl.clientHeight; svg.attr("viewBox",[0,0,W,H]);
-const PAD=64, clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));   // PAD keeps nodes this far from the edge
+const clamp=(v,lo,hi)=> hi<lo ? (lo+hi)/2 : Math.max(lo,Math.min(hi,v));   // keep a value inside a range; if the range is inverted (a box wider than the screen) just centre it
+// responsive scale: the whole layout shrinks a little on narrow screens so nothing crowds or runs off the edge (1 on a desktop, down to about 0.6 on a phone)
+let SCALE=1; function updateScale(){ SCALE=Math.max(0.6,Math.min(1,W/820)); } updateScale();
+let PAD=Math.round(64*SCALE);   // the edge margin, a touch tighter on small screens
 
 // how much space each node clears around itself, satellites use ~5 because their true rectangle does the real work in rectForce
 const collideR = d => d.itype==="info-text"?5 : d.itype==="info-link"?5
-                    : d.type==="root"?54 : d.type==="branch"?48 : 42;
+                    : (d.type==="root"?54 : d.type==="branch"?48 : 42) * SCALE;   // scaled so nodes keep a smaller spacing bubble on narrow screens
 
 // the physics simulation, tweak these to change how the tree feels: velocityDecay is damping, alphaTarget keeps it gently alive, link distance is how far connected nodes rest, charge is how hard nodes push apart, cx/cy pull toward the centre
 const sim=d3.forceSimulation([])
   .velocityDecay(.83).alphaTarget(.006).alphaMin(0)
   .force("link",d3.forceLink([]).id(d=>d.id)
-     .distance(l=> l.target.itype==="info-text"?175 : l.target.itype==="info-image"?165 : l.target.itype==="info-link"?135 : 160)
+     .distance(l=> (l.target.itype==="info-text"?175 : l.target.itype==="info-image"?165 : l.target.itype==="info-link"?135 : 160) * SCALE)
      .strength(l=> l.info?.28:.5))
-  .force("charge",d3.forceManyBody().strength(-560).distanceMax(520))
+  .force("charge",d3.forceManyBody().strength(()=> -560*SCALE).distanceMax(520))
   .force("collide",d3.forceCollide().radius(collideR).strength(.95).iterations(4))
   .force("cx",d3.forceX(W/2).strength(.05))
   .force("cy",d3.forceY(H/2).strength(.05))
@@ -298,7 +307,7 @@ function buildInfo(id){          // builds a node's satellites (its text, images
   items.forEach((it,i)=>{
     const nidd=id+"__"+it.suffix, cached=posCache.get(nidd);
     const ang=baseAng+(i-(n-1)/2)*0.7;     // spread the satellites apart in a fan
-    const dist=it.itype==="info-text"?165 : it.itype==="info-image"?150 : 130;
+    const dist=(it.itype==="info-text"?165 : it.itype==="info-image"?150 : 130) * SCALE;
     const start=cached||{x:base.x+Math.cos(ang)*dist, y:base.y+Math.sin(ang)*dist};
     nodes.push(Object.assign({id:nidd,itype:it.itype,parentId:id},it.payload,{x:start.x,y:start.y}));
     links.push({source:id,target:nidd,info:true});
@@ -548,10 +557,14 @@ sim.on("tick",()=>{          // runs every animation frame: keep nodes on-screen
 function travel(id){ if(!byId.has(id)||id===focusId) return; focusId=id; hoverId=null; infoFor=id; sync(.9); }   // travel into a node: it becomes the new centre, the tree rebuilds, and its own satellites bloom out automatically
 svg.on("click",()=>{ if(focusId!=="self") travel("self"); });   // clicking empty space returns you to the root
 
-new ResizeObserver(()=>{ W=graphEl.clientWidth; H=graphEl.clientHeight; svg.attr("viewBox",[0,0,W,H]);   // keep everything centred and sized when the window changes size
+let lastW=W, lastH=H;
+new ResizeObserver(()=>{ const nw=graphEl.clientWidth, nh=graphEl.clientHeight;   // keep everything centred, scaled and sized when the window changes size (a phone rotating included)
+  if(nw===lastW && nh===lastH) return;   // ignore the observer's first fire and no-op changes so the opening entrance is never interrupted
+  lastW=nw; lastH=nh; W=nw; H=nh; svg.attr("viewBox",[0,0,W,H]);
+  updateScale(); PAD=Math.round(64*SCALE);
   sim.force("cx",d3.forceX(W/2).strength(.05)); sim.force("cy",d3.forceY(H/2).strength(.05));
   sim.force("fx",d3.forceX(W/2).strength(n=> n.id===focusId?0.15:0)); sim.force("fy",d3.forceY(H/2).strength(n=> n.id===focusId?0.15:0));
-  sim.alpha(.5).restart();
+  sync(.5);   // rebuild so the scaled distance, charge and collide forces re-read SCALE at the new size
 }).observe(graphEl);
 
 sync(.9); firstLoad=false;   // draw once to start, then turn off the first-load entrance flag
