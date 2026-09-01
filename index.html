@@ -438,7 +438,7 @@ const drag=d3.drag()
 
 // hover handling: showing and hiding a node's satellites; hideTimer gives you a moment to move onto a satellite before it retracts
 let hideTimer=null;
-function scheduleHide(){ clearTimeout(hideTimer); hideTimer=setTimeout(()=>{ hoverId=null; if(infoFor){ infoFor=null; sync(.28); } paint(); },400); }
+function scheduleHide(){ clearTimeout(hideTimer); hideTimer=setTimeout(()=>{ hoverId=null; if(infoFor!==focusId){ infoFor=focusId; sync(.28); } paint(); },400); }
 function onEnter(e,d){ clearTimeout(hideTimer); if(d.itype) return;   // hovering a satellite just keeps things alive
   hoverId=d.id; if(infoFor!==d.id){ infoFor=d.id; sync(.35); } paint(); }
 function onLeave(e,d){ scheduleHide(); }
@@ -540,7 +540,7 @@ sim.on("tick",()=>{          // runs every animation frame: keep nodes on-screen
   node.attr("transform",d=>`translate(${d.x},${d.y})`).each(d=>posCache.set(d.id,{x:d.x,y:d.y}));
 });
 
-function travel(id){ if(!byId.has(id)||id===focusId) return; focusId=id; hoverId=null; infoFor=null; sync(.9); }   // travel into a node: it becomes the new centre and the tree rebuilds around it
+function travel(id){ if(!byId.has(id)||id===focusId) return; focusId=id; hoverId=null; infoFor=id; sync(.9); }   // travel into a node: it becomes the new centre, the tree rebuilds, and its own satellites bloom out automatically
 svg.on("click",()=>{ if(focusId!=="self") travel("self"); });   // clicking empty space returns you to the root
 
 new ResizeObserver(()=>{ W=graphEl.clientWidth; H=graphEl.clientHeight; svg.attr("viewBox",[0,0,W,H]);   // keep everything centred and sized when the window changes size
