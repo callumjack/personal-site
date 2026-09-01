@@ -151,17 +151,17 @@ const DATA = [
     body:"A grouping for side projects and open-ended experiments.", connect:["gallery", "interests", "inspirations"] },
 
   // items under Gallery, this first one also carries an image satellite and a link satellite
-  { id:"proj-a", type:"leaf", parent:"gallery", label:"Project One", kind:"Project",
-    subtitle:"One line on what it is.", meta:{ year:"2024", role:"Design & Build" },
-    body:"A short, honest description - what it was, what you did, why it mattered.",
-    connect:["essay-a","exp-a"], further:[{label:"Live site", url:"#"}],
-    images:[{src:IMG_PLACEHOLDER, alt:"Project One preview"}] },
+  { id:"proj-a", type:"leaf", parent:"gallery", label:"Switzerland 2026", kind:"Project",
+    subtitle:"Kodak Ultramax 400",
+    body:"Exploring Switzerland on film.",
+    connect:["goal-a"],
+    images:[{src:image.morteratsch.jpg, alt:"Project One preview"}, {src:image.matterhorn.jpg, alt:"Project One preview"}, {src:image.zermatt.jpg, alt:"Project One preview"}] },
   { id:"proj-b", type:"leaf", parent:"gallery", label:"Project Two", kind:"Project",
     subtitle:"One line on what it is.", meta:{ year:"2023", role:"Lead" },
     body:"Another short description. Swap in your own.", connect:["exp-b"] },
 
   // items under Goals
-  { id:"essay-a", type:"leaf", parent:"goals", label:"An Essay", kind:"Essay",
+  { id:"goal-a", type:"leaf", parent:"goals", label:"An Essay", kind:"Essay",
     subtitle:"The idea in a sentence.", meta:{ year:"2024" },
     body:"What the piece argues, briefly.", connect:["note-a","proj-a"],
     further:[{label:"Read it", url:"#"}] },
