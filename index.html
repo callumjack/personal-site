@@ -88,7 +88,7 @@
     text-shadow:-1.5px -1.5px 0 var(--paper),1.5px -1.5px 0 var(--paper),-1.5px 1.5px 0 var(--paper),1.5px 1.5px 0 var(--paper),0 0 3px var(--paper);}   /* a link satellite */
   .alink a:hover{opacity:.7;}
   .aimg{display:inline-block;line-height:0;}   /* an image satellite (add border:1px solid var(--ink) here to frame it) */
-  .aimg img{display:block;width:118px;height:auto;}
+  .aimg img{display:block;width:clamp(84px,26vw,118px);height:auto;}   /* an image satellite shrinks on narrow screens so it never overflows */
 
   @media print{ body{overflow:visible;} svg{height:86vh;} }   /* let the page show normally when printed */
 </style>
@@ -311,7 +311,7 @@ function drawShape(sel){          // draws the contents of one node group, this 
     const g=d3.select(this);
 
     if(d.itype==="info-text"){          // a satellite text block (subtitle + body + meta)
-      const TW=160;                                        // text column width in pixels
+      const TW=Math.round(Math.min(160, W-48));            // text column width in pixels, capped so a block never exceeds a narrow screen
       const back=g.append("rect").attr("class","iback");   // invisible paper mask so lines stop at the edge
       const hit=g.append("rect").attr("class","ihit");     // invisible hover area
       const fo=g.append("foreignObject").attr("class","fo").attr("width",TW).attr("height",340).attr("x",-TW/2).attr("y",-46);
@@ -531,7 +531,11 @@ function clipPoint(n, fx, fy){          // stops a line at a node's boundary plu
 const CLIPGAP=6;
 
 sim.on("tick",()=>{          // runs every animation frame: keep nodes on-screen, then position the lines and nodes
-  sim.nodes().forEach(n=>{ n.x=clamp(n.x,PAD,W-PAD); n.y=clamp(n.y,PAD,H-PAD); });
+  sim.nodes().forEach(n=>{
+    if(n._w){ const hw=n._w/2+6, hh=n._h/2+6;   // a satellite is clamped by its whole rectangle so its text can never run off the edge
+      n.x=clamp(n.x,hw,W-hw); n.y=clamp(n.y,hh,H-hh);
+    } else { n.x=clamp(n.x,PAD,W-PAD); n.y=clamp(n.y,PAD,H-PAD); }   // a normal node is clamped by the plain edge margin
+  });
   link.each(function(d){
     const [x1,y1]=clipPoint(d.source, d.target.x, d.target.y);
     const [x2,y2]=clipPoint(d.target, d.source.x, d.source.y);
