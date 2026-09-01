@@ -116,7 +116,7 @@
 const ACCENTS = {          // the accent palette, all tuned to sit beside the original orange on the light background
   orange:"#e64500",   // the original
   red:   "#d92d20",
-  yellow:"#e0a000",   // a deep amber so it reads on light grey
+  yellow:"#e0a000",
   green: "#2f9e44",
   blue:  "#2f6fe0",
   purple:"#8a3fd4",
@@ -128,52 +128,75 @@ const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2
 const DATA = [
   // the centre of everything, type "root" with no parent
   { id:"self", type:"root", label:"Callum Jack", sub:"b. 2009", kind:"Index", shape:"poolball", accent:"#0a0a0a",
-    subtitle:"An evolving collection of my work, and the themes that run through it.",
-    body:"A short statement of intent - what ties everything together, in your own voice.",
-    meta:{ email:"you@example.com" },
-    connect:["work","writing","play"] },
+    subtitle:"(WIP)",
+    body:"Experimental personal portfolio site.",
+    meta:{ email:"callum_jack@icloud.com",
+           instagram:"@callumdoescoolstuff"},
+    connect:["gallery","goals","inspirations","interests","projects"] },
 
   // the three top-level areas, each carries its own accent colour which tints its highlighted lines and ring
-  { id:"work", type:"branch", parent:"self", label:"Work", kind:"Area", accent:"blue",
+  { id:"gallery", type:"branch", parent:"self", label:"Gallery", kind:"Area", accent:"blue",
     subtitle:"Things I build and ship.",
     body:"A grouping for your projects and professional work.", connect:["writing"] },
-  { id:"writing", type:"branch", parent:"self", label:"Writing", kind:"Area", accent:"green",
+  { id:"goals", type:"branch", parent:"self", label:"Goals", kind:"Area", accent:"green",
     subtitle:"Things I think through in words.",
     body:"A grouping for essays, notes, and research." },
-  { id:"play", type:"branch", parent:"self", label:"Experiments", kind:"Area", accent:"purple",
+  { id:"inspirations", type:"branch", parent:"self", label:"Inspirations", kind:"Area", accent:"purple",
+    subtitle:"Things I make to learn.",
+    body:"A grouping for side projects and open-ended experiments." },
+  { id:"interests", type:"branch", parent:"self", label:"Interests", kind:"Area", accent:"purple",
+    subtitle:"Things I make to learn.",
+    body:"A grouping for side projects and open-ended experiments." },
+  { id:"projects", type:"branch", parent:"self", label:"Projects", kind:"Area", accent:"purple",
     subtitle:"Things I make to learn.",
     body:"A grouping for side projects and open-ended experiments." },
 
-  // items under Work, this first one also carries an image satellite and a link satellite
-  { id:"proj-a", type:"leaf", parent:"work", label:"Project One", kind:"Project",
+  // items under Gallery, this first one also carries an image satellite and a link satellite
+  { id:"proj-a", type:"leaf", parent:"gallery", label:"Project One", kind:"Project",
     subtitle:"One line on what it is.", meta:{ year:"2024", role:"Design & Build" },
     body:"A short, honest description - what it was, what you did, why it mattered.",
     connect:["essay-a","exp-a"], further:[{label:"Live site", url:"#"}],
     images:[{src:IMG_PLACEHOLDER, alt:"Project One preview"}] },
-  { id:"proj-b", type:"leaf", parent:"work", label:"Project Two", kind:"Project",
+  { id:"proj-b", type:"leaf", parent:"gallery", label:"Project Two", kind:"Project",
     subtitle:"One line on what it is.", meta:{ year:"2023", role:"Lead" },
     body:"Another short description. Swap in your own.", connect:["exp-b"] },
 
-  // items under Writing
-  { id:"essay-a", type:"leaf", parent:"writing", label:"An Essay", kind:"Essay",
+  // items under Goals
+  { id:"essay-a", type:"leaf", parent:"goals", label:"An Essay", kind:"Essay",
     subtitle:"The idea in a sentence.", meta:{ year:"2024" },
     body:"What the piece argues, briefly.", connect:["note-a","proj-a"],
     further:[{label:"Read it", url:"#"}] },
-  { id:"note-a", type:"leaf", parent:"writing", label:"Working Note", kind:"Note",
+  { id:"note-a", type:"leaf", parent:"goals", label:"Working Note", kind:"Note",
     subtitle:"A thought in progress.", meta:{ status:"Ongoing" },
     body:"Short, unfinished thinking - the kind that later becomes a project." },
 
-  // items under Experiments
-  { id:"exp-a", type:"leaf", parent:"play", label:"Sketch No. 1", kind:"Experiment",
+  // items under Inspirations
+  { id:"exp-a", type:"leaf", parent:"inspirations", label:"Sketch No. 1", kind:"Experiment",
     subtitle:"A small interactive study.", meta:{ year:"2024" },
     body:"A quick thing you built to try an idea.", connect:["proj-a"] },
-  { id:"exp-b", type:"leaf", parent:"play", label:"Sketch No. 2", kind:"Experiment",
+  { id:"exp-b", type:"leaf", parent:"inspirations", label:"Sketch No. 2", kind:"Experiment",
+    subtitle:"Another small study.", meta:{ year:"2022" },
+    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
+
+  // items under Interests
+  { id:"exp-a", type:"leaf", parent:"interests", label:"Sketch No. 1", kind:"Experiment",
+    subtitle:"A small interactive study.", meta:{ year:"2024" },
+    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
+  { id:"exp-b", type:"leaf", parent:"interests", label:"Sketch No. 2", kind:"Experiment",
+    subtitle:"Another small study.", meta:{ year:"2022" },
+    body:"Describe the experiment in a line or two.", connect:["proj-b"] },
+
+  // items under Projects
+  { id:"exp-a", type:"leaf", parent:"projects", label:"Sketch No. 1", kind:"Experiment",
+    subtitle:"A small interactive study.", meta:{ year:"2024" },
+    body:"A quick thing you built to try an idea.", connect:["proj-a"] },
+  { id:"exp-b", type:"leaf", parent:"projects", label:"Sketch No. 2", kind:"Experiment",
     subtitle:"Another small study.", meta:{ year:"2022" },
     body:"Describe the experiment in a line or two.", connect:["proj-b"] },
 ];
 
 // which symbol each area's items use, the key is a branch id and every leaf under it gets that shape
-const AREA_SHAPE = { work:"triangle", writing:"square", play:"circle" };
+const AREA_SHAPE = { gallery:"circle", goals:"triangle", inspirations:"circle", interests:"circle", projects:"square" };
 
 // from here down is the engine, it rarely needs editing
 
